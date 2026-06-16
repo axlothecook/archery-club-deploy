@@ -48,6 +48,10 @@ services:
       # adapter-node trusts X-Forwarded-* from the proxy in front of it.
       - PROTOCOL_HEADER=x-forwarded-proto
       - HOST_HEADER=x-forwarded-host
+      # The app reads the API base from $env/dynamic/public at RUNTIME (not build).
+      # Must be set here or it falls back to localhost:3100 and SSR loads fetch
+      # nothing → empty pages. Same-origin /api (browser + SSR both reach it).
+      - PUBLIC_API_BASE_URL=https://archery.axlothecook.com/api
     depends_on:
       - backend
 
