@@ -1,68 +1,99 @@
-# Archery club (VSK) — deploy stack
+# Deploy stack repo for Archery club and Dashboard
 
-Production deployment for **archery.axlothecook.com**, self-hosted on the home
-Raspberry Pi alongside the gaming-shop and create-resume stacks. Same proven
-pattern: GHCR images built by CI (arm64), pulled by the Pi; a dedicated Cloudflare
-Tunnel; same-origin topology (one hostname, nginx proxies `/api`).
+This repo runs the whole system of public site, backend and admin dashboard on my Raspberry Pi. They are all brought behind one nginx proxy and Cloudflare tunnel.
 
-## Architecture
+The repo consists of config files and one bash script that describe how to run the 6 Docker containers together. The instruction files are: docker-compose.prod.yml, nginx.conf, backup-db.sh and .env.example.
 
-```
-Cloudflare edge ──(tunnel)──► cloudflared ─► proxy(nginx:80)
-                                               ├─ /        ─► frontend (SvelteKit adapter-node :3000)
-                                               └─ /api/*   ─► backend  (Express+Prisma :3100, prefix stripped)
-                                                              backend ─► db (Postgres 17)
-                                                              backend ─► R2 (images.axlothecook.com) + Google Translate
-```
+## How does GitHub Container Registry (GHCR) work in this project?
+After pushing to main branch, GitHub Actions builds the app into a Docker image. Then CI logs into ghcr.io (GHCR - GitHub's storage service for Docker images), tags the image and pushes it as a package stored under my GitHub account, from which the Pi pulls via `docker compose pull` and runs it.
 
-One origin (`archery.axlothecook.com`) → first-party `SameSite=Lax` session cookie,
-so admin login works on strict browsers. The API mounts at root in the backend; the
-proxy strips the `/api` prefix.
+Basically the image is built in GitHub's cloud and the Pi just downloads the finished result. GHCR only receives and stores it.
 
-## Repos / images
-- Frontend → `ghcr.io/axlothecook/archery-club-frontend:latest`
-- Backend  → `ghcr.io/axlothecook/archery-club-backend:latest`
-- Each repo's `.github/workflows/deploy.yml` builds+pushes on push to `main`, then
-  SSHes to the Pi (over Tailscale) and runs `pull` + `up -d`.
+## Why not build on Pi?
+Building the image on Pi would be slow and heavy for the small machine. That's why a registry and CI are used. Any registry could have been used - Docker Hub, GHCR, etc.
 
-## CI secrets (set on BOTH archery repos)
-Reuse the SAME values as the game-shop / create-resume repos:
-- `TS_OAUTH_CLIENT_ID`, `TS_OAUTH_SECRET` — Tailscale OAuth (tag:ci)
-- `PI_TAILSCALE_IP`, `PI_USER`, `PI_SSH_KEY` — Pi SSH over the tailnet
-- `GITHUB_TOKEN` — auto-provided (GHCR push)
 
-## First deploy (on the Pi)
-1. **Clone this folder** to `~/archery-club-deploy` on the Pi.
-2. **Create `.env`** from `.env.example`; fill in:
-   - `POSTGRES_PASSWORD` (`openssl rand -hex 24`) — and put the same value in `DATABASE_URL`.
-   - `SESSION_SECRET` (`node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"`).
-   - `R2_*` (same as the local backend `.env`), `GOOGLE_TRANSLATE_KEY`.
-   - `TUNNEL_TOKEN` (see below).
-3. **Cloudflare Tunnel:** Zero Trust → Networks → Tunnels → create `archery`; copy its
-   token into `TUNNEL_TOKEN`. Add ONE public hostname on it:
-   `archery.axlothecook.com` → HTTP → `proxy:80`. Ensure DNS for the subdomain points
-   through the tunnel. Enable "Always Use HTTPS" on the zone (Secure cookies need https).
-4. **Pull + start:**
-   ```bash
-   docker compose -f docker-compose.prod.yml pull
-   docker compose -f docker-compose.prod.yml up -d
-   ```
-5. **Initialise the DB** (fresh Postgres — run the backend's scripts inside its container):
-   ```bash
-   docker compose -f docker-compose.prod.yml exec backend npx prisma migrate deploy
-   docker compose -f docker-compose.prod.yml exec backend npm run import-seed
-   docker compose -f docker-compose.prod.yml exec backend npx tsx scripts/translate-backfill.ts
-   docker compose -f docker-compose.prod.yml exec backend npm run create-admin
-   ```
-6. **Verify:** `https://archery.axlothecook.com` loads; HR/EN switch works; `/api/health`
-   returns ok; admin login works.
+# Docker containers
+db: PostgreSQL 17 <br />
+backend: Express API (from GHCR) <br />
+frontend: the public site (from GHCR) <br />
+dashboard: the admin CMS (from GHCR) <br />
+proxy: nginx <br />
+cloudflared: Cloudflare Tunnel
 
-## Backups (2-tier, mirrors game-shop)
-- **Tier 1 (Pi):** `backup-db.sh` → nightly `pg_dump` gzip to `./backups`, prunes > 14 days.
-  Cron: `15 22 * * * /home/<user>/archery-club-deploy/backup-db.sh >> .../backups/backup.log 2>&1`
-- **Tier 2 (PC):** the shared `pull-pi-backups.ps1` scps the Pi backups to the PC nightly.
-- **Restore:** `gunzip -c archery_<stamp>.sql.gz | docker compose -f docker-compose.prod.yml exec -T db psql -U $POSTGRES_USER -d $POSTGRES_DB`
+### What does each docker image do
 
-## Updating
-Push to `main` on either repo → CI builds + deploys automatically. Manual:
-`docker compose -f docker-compose.prod.yml pull && docker compose -f docker-compose.prod.yml up -d`
+[PostgreSQL](link to postgres) container runs the official Postgres standard image, keeps its data in a named volume so deploys don't wipe it, auto-restarts on failure, and reports a healthcheck the backend waits on before it starts.
+
+[Express API]() runs the backend image pulled from GHCR, reads all its config and secrets from the .env file, then waits for the database to be healthy before it starts. That's the other half of the db's healthcheck: the API never boots against a database that isn't ready yet.
+
+The public site runs the [SvelteKit]() frontend from GHCR. It trusts nginx's forwarded headers (real https host/protocol) and gets the API URL at runtime. Since the URL is read at runtime and not at build time, the public api base has to be set here. If it isn't, the URL falls back to localhost:3100 so the API fetch fails, and the route loaders quietly default to empty data, which is why the data sections render empty. Which means the page still loads, just with no content from the API.
+
+This container also depends on the backend.
+
+The admin dashboard: a separate SvelteKit server. Its image uses the same concepts of forwarded-header trust and runtime API URL as the public site frontend, and also waits on the backend. The only difference is the requests it receives, the ones for the dashboard's own pages (examples bellow), while everything else goes to the public site.
+
+[nginx]() Docker image runs with read-only nginx.conf mounted into the container, so the routing rules come straight from this repo, not baked into an image. It waits for three containers to be up - backend, frontend and dashboard. It also doesn't publish any port to the host - nothing is exposed to the internet directly. The only thing that talks to it is the tunnel container by name (proxy:80) and internally only.
+
+
+[Cloudflare Tunnel]() image runs Cloudflare's tunnel client, authenticated by the tunnel token. It makes an outbound connection to Cloudflare's edge. This way the common archery domain can reach the Pi without opening any ports or needing a static IP. Also depends on the proxy.
+
+How does it do that? The Pi dials out to Cloudflare; Cloudflare sends public traffic back down that connection to the proxy.
+
+
+# Request flow (runtime) 
+I made a diagram of how a request flows through the stack at runtime: from the browser, through the Cloudflare Tunnel to nginx on the Pi, then on to the right service (public site, dashboard, or backend). Everything runs on one home Raspberry Pi, behind a Cloudflare Tunnel, so nothing on the Pi is exposed to the internet directly: cloudflared dials out to Cloudflare, and no ports are exposed to the internet.
+
+![image](https://github.com/user-attachments/assets/e5c592aa-1094-4cbd-a0d3-993f59ff04aa)
+
+## How a request flows
+The hostname archery.axlothecook.com receives all requests, whether that be to the api, the public site or dashboard, and nginx decides where it goes.
+
+if the request starts with `/api/` nginx strips the /api prefix and the request goes to the backend <br />
+if the request is a dashboard path, like `/accept-invite, /reset-password` etc, dashboard gets the request <br />
+every other request goes to frontend (the public site)
+
+Once a request reaches the backend, it reads and writes its data in the Postgres database. On admin writes only, it also calls two outside services: Cloudflare R2 when an admin uploads an image, and Google Translate to backfill the English text when an admin saves Croatian content.
+
+# The problem that one domain solves
+Browsers usually refuse to send the login cookie when the page's domain differs from the API's domain. There was a potential for that problem to happen here too - the backend api domain vs public site domain / dashboard domain. But because they are all hosted under the same domain (archery.axlothecook.com), the login cookie is first-party (`SameSite=Lax`), so it works even in browsers that block cross-site cookies.
+
+
+# Deployment pipelines 
+Each repo (backend, public site, dashboard) has its own GitHub Actions pipeline, and they all follow the same core flow: a push to main runs the tests, then CI builds an arm64 image and pushes it to GHCR, then connects to the Pi over Tailscale and the Pi pulls the image and restarts. If any test fails, nothing gets deployed. The diagrams below show each repo's version and where they differ.
+
+## Backend deployment pipeline
+The backend has the heaviest test job of the three: besides the typecheck and unit tests it also runs integration tests, which need a real database. That part gets its own diagram below.
+
+![image](https://github.com/user-attachments/assets/079dfcba-e09a-4a8c-8d0e-4811274ce8f1)
+
+## Backend integration testing 
+Since this testing includes both unit and integration tests, I gave it its own diagram. CI starts a throwaway Postgres database, the job creates and migrates a separate test database, and the integration tests run their queries against that live database. It also checks out the shared TypeScript types repo (archery-contracts) next to the backend so the file dependency resolves.
+
+![image](https://github.com/user-attachments/assets/0adb4b7c-04c8-4534-99f6-2bf6bee8e313)
+
+
+## Public site deployment pipeline
+The public site's tests are node-only and have no database, so its tests are lighter. Otherwise its pipeline follows the shared flow in the same way.
+
+![image](https://github.com/user-attachments/assets/f99d95f4-8b1d-47bb-acc9-1f8c15739523)
+
+
+## Dashboard deployment pipeline
+The dashboard's deploy is scoped, meaning that instead of restarting the whole stack, it pulls and recreates only its own container, then reloads nginx so nginx picks up the new container's address.
+
+![image](https://github.com/user-attachments/assets/dc868418-79b2-469d-b986-79dba121c46d)
+
+
+
+# The config
+Since I cannot commit .env to git, and real variable values can live only in the Pi's .env, I created a .env.example that lists what the Pi needs:
+
+Postgres credentials <br />
+SESSION_SECRET <br />
+the Cloudflare TUNNEL_TOKEN <br />
+the API keys for: R2 (images), Google Translate, and Brevo (email) <br />
+
+
+# The fun part - Backups
+This is where the `backup-db.sh` shell script comes in. It basically runs a nightly pg_dump of the database, gzipped into ./backups folder. It keeps the data for 14 days, and it also verifies the dump isn't empty or corrupt before deleting old ones. This prevents a failed backup wiping the stored good backups. Additionally, a second tier copies these off the Pi to my PC.
