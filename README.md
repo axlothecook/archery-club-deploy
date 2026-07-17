@@ -76,13 +76,13 @@ Since this testing includes both unit and integration tests, I gave it its own d
 ## Public site deployment pipeline
 The public site's tests are node-only and have no database, so its tests are lighter. Otherwise its pipeline follows the shared flow in the same way.
 
-![image](https://github.com/user-attachments/assets/7095f962-1dee-46af-bd65-f923e08acc4f)
+![image](https://github.com/user-attachments/assets/d6b1e715-5e09-467f-b8b7-c6b3ef6553a5)
 
 
 ## Dashboard deployment pipeline
 The dashboard's deploy is scoped, meaning that instead of restarting the whole stack, it pulls and recreates only its own container, then reloads nginx so nginx picks up the new container's address.
 
-![image](https://github.com/user-attachments/assets/59ad37f9-57f4-447d-9076-bdeebdc47113)
+![image](https://github.com/user-attachments/assets/3b1e1f4b-db41-43bd-8ad0-06901a5fb958)
 
 
 
