@@ -64,6 +64,10 @@ Once a request reaches the backend, it reads and writes its data in the Postgres
 Browsers usually refuse to send the login cookie when the page's domain differs from the API's domain. There was a potential for that problem to happen here too - the backend api domain vs public site domain / dashboard domain. But because they are all hosted under the same domain (archery.axlothecook.com), the login cookie is first-party (`SameSite=Lax`), so it works even in browsers that block cross-site cookies.
 
 
+# A comment on the CI/CD deploys
+All my self-hosted projects share the same CI/CD pipeline. I wrote up how it works, with diagrams, in [one place](link to the repo). This repo just holds the compose file and config the Pi runs.
+
+
 # Deployment pipelines 
 Each repo (backend, public site, dashboard) has its own GitHub Actions pipeline, and they all follow the same core flow: a push to main runs the tests, then CI builds an arm64 image and pushes it to GHCR, then connects to the Pi over Tailscale and the Pi pulls the image and restarts. If any test fails, nothing gets deployed. The diagrams below show each repo's version and where they differ.
 
