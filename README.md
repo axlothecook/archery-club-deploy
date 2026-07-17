@@ -65,7 +65,7 @@ Browsers usually refuse to send the login cookie when the page's domain differs 
 
 
 # A comment on the CI/CD deploys
-All my self-hosted projects share the same CI/CD pattern, which I wrote up once, with diagrams, in [one place](link to the repo). Below are the archery versions of that pipeline and where each repo differs.
+All my self-hosted projects share the same CI/CD pattern, which I wrote up once, with diagrams, in [one place](https://github.com/axlothecook/homelab-ci-cd). Below are the archery versions of that pipeline and where each repo differs.
 
 # Deployment pipelines 
 Each repo (backend, public site, dashboard) has its own GitHub Actions pipeline, and they all follow the same core flow: a push to main runs the tests, then CI builds an arm64 image and pushes it to GHCR, then connects to the Pi over Tailscale and the Pi pulls the image and restarts. If any test fails, nothing gets deployed. The diagrams below show each repo's version and where they differ.
