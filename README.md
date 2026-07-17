@@ -4,14 +4,6 @@ This repo runs the whole system of public site, backend and admin dashboard on m
 
 The repo consists of config files and one bash script that describe how to run the 6 Docker containers together. The instruction files are: docker-compose.prod.yml, nginx.conf, backup-db.sh and .env.example.
 
-## How does GitHub Container Registry (GHCR) work in this project?
-After pushing to main branch, GitHub Actions builds the app into a Docker image. Then CI logs into ghcr.io (GHCR - GitHub's storage service for Docker images), tags the image and pushes it as a package stored under my GitHub account, from which the Pi pulls via `docker compose pull` and runs it.
-
-Basically the image is built in GitHub's cloud and the Pi just downloads the finished result. GHCR only receives and stores it.
-
-## Why not build on Pi?
-Building the image on Pi would be slow and heavy for the small machine. That's why a registry and CI are used. Any registry could have been used - Docker Hub, GHCR, etc.
-
 
 # Docker containers
 <ul>
