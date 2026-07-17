@@ -14,29 +14,30 @@ Building the image on Pi would be slow and heavy for the small machine. That's w
 
 
 # Docker containers
-db: PostgreSQL 17 <br />
-backend: Express API (from GHCR) <br />
-frontend: the public site (from GHCR) <br />
-dashboard: the admin CMS (from GHCR) <br />
-proxy: nginx <br />
-cloudflared: Cloudflare Tunnel
+<ul>
+  <li>db: PostgreSQL 17</li>
+  <li>backend: Express API (from GHCR)</li>
+  <li>frontend: the public site (from GHCR)</li>
+  <li>dashboard: the admin CMS (from GHCR)</li>
+  <li>proxy: nginx</li>
+  <li>cloudflared: Cloudflare Tunnel</li>
+</ul>
 
 ### What does each docker image do
 
-[PostgreSQL](link to postgres) container runs the official Postgres standard image, keeps its data in a named volume so deploys don't wipe it, auto-restarts on failure, and reports a healthcheck the backend waits on before it starts.
+[PostgreSQL](https://www.postgresql.org) container runs the official Postgres standard image, keeps its data in a named volume so deploys don't wipe it, auto-restarts on failure, and reports a healthcheck the backend waits on before it starts.
 
-[Express API]() runs the backend image pulled from GHCR, reads all its config and secrets from the .env file, then waits for the database to be healthy before it starts. That's the other half of the db's healthcheck: the API never boots against a database that isn't ready yet.
+[Express API](https://expressjs.com) runs the backend image pulled from GHCR, reads all its config and secrets from the .env file, then waits for the database to be healthy before it starts. That's the other half of the db's healthcheck: the API never boots against a database that isn't ready yet.
 
-The public site runs the [SvelteKit]() frontend from GHCR. It trusts nginx's forwarded headers (real https host/protocol) and gets the API URL at runtime. Since the URL is read at runtime and not at build time, the public api base has to be set here. If it isn't, the URL falls back to localhost:3100 so the API fetch fails, and the route loaders quietly default to empty data, which is why the data sections render empty. Which means the page still loads, just with no content from the API.
+The public site runs the [SvelteKit](https://svelte.dev/docs/kit/introduction) frontend from GHCR. It trusts nginx's forwarded headers (real https host/protocol) and gets the API URL at runtime. Since the URL is read at runtime and not at build time, the public api base has to be set here. If it isn't, the URL falls back to localhost:3100 so the API fetch fails, and the route loaders quietly default to empty data, which is why the data sections render empty. Which means the page still loads, just with no content from the API.
 
 This container also depends on the backend.
 
 The admin dashboard: a separate SvelteKit server. Its image uses the same concepts of forwarded-header trust and runtime API URL as the public site frontend, and also waits on the backend. The only difference is the requests it receives, the ones for the dashboard's own pages (examples bellow), while everything else goes to the public site.
 
-[nginx]() Docker image runs with read-only nginx.conf mounted into the container, so the routing rules come straight from this repo, not baked into an image. It waits for three containers to be up - backend, frontend and dashboard. It also doesn't publish any port to the host - nothing is exposed to the internet directly. The only thing that talks to it is the tunnel container by name (proxy:80) and internally only.
+[nginx](https://nginx.org) Docker image runs with read-only nginx.conf mounted into the container, so the routing rules come straight from this repo, not baked into an image. It waits for three containers to be up - backend, frontend and dashboard. It also doesn't publish any port to the host - nothing is exposed to the internet directly. The only thing that talks to it is the tunnel container by name (proxy:80) and internally only.
 
-
-[Cloudflare Tunnel]() image runs Cloudflare's tunnel client, authenticated by the tunnel token. It makes an outbound connection to Cloudflare's edge. This way the common archery domain can reach the Pi without opening any ports or needing a static IP. Also depends on the proxy.
+[Cloudflare Tunnel](https://developers.cloudflare.com/tunnel/) image runs Cloudflare's tunnel client, authenticated by the tunnel token. It makes an outbound connection to Cloudflare's edge. This way the common archery domain can reach the Pi without opening any ports or needing a static IP. Also depends on the proxy.
 
 How does it do that? The Pi dials out to Cloudflare; Cloudflare sends public traffic back down that connection to the proxy.
 
@@ -46,14 +47,18 @@ I made a diagram of how a request flows through the stack at runtime: from the b
 
 ![image](https://github.com/user-attachments/assets/e5c592aa-1094-4cbd-a0d3-993f59ff04aa)
 
+
 ## How a request flows
 The hostname archery.axlothecook.com receives all requests, whether that be to the api, the public site or dashboard, and nginx decides where it goes.
 
-if the request starts with `/api/` nginx strips the /api prefix and the request goes to the backend <br />
-if the request is a dashboard path, like `/accept-invite, /reset-password` etc, dashboard gets the request <br />
-every other request goes to frontend (the public site)
+<ul>
+  <li>if the request starts with `/api/` nginx strips the /api prefix and the request goes to the backend</li>
+  <li>if the request is a dashboard path, like `/accept-invite, /reset-password` etc, dashboard gets the request</li>
+  <li>every other request goes to frontend (the public site)</li>
+</ul>
 
 Once a request reaches the backend, it reads and writes its data in the Postgres database. On admin writes only, it also calls two outside services: Cloudflare R2 when an admin uploads an image, and Google Translate to backfill the English text when an admin saves Croatian content.
+
 
 # The problem that one domain solves
 Browsers usually refuse to send the login cookie when the page's domain differs from the API's domain. There was a potential for that problem to happen here too - the backend api domain vs public site domain / dashboard domain. But because they are all hosted under the same domain (archery.axlothecook.com), the login cookie is first-party (`SameSite=Lax`), so it works even in browsers that block cross-site cookies.
@@ -89,10 +94,12 @@ The dashboard's deploy is scoped, meaning that instead of restarting the whole s
 # The config
 Since I cannot commit .env to git, and real variable values can live only in the Pi's .env, I created a .env.example that lists what the Pi needs:
 
-Postgres credentials <br />
-SESSION_SECRET <br />
-the Cloudflare TUNNEL_TOKEN <br />
-the API keys for: R2 (images), Google Translate, and Brevo (email) <br />
+<ul>
+  <li>Postgres credentials</li>
+  <li>SESSION_SECRET</li>
+  <li>the Cloudflare TUNNEL_TOKEN</li>
+  <li>the API keys for: R2 (images), Google Translate, and Brevo (email)</li>
+</ul>
 
 
 # The fun part - Backups
