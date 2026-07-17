@@ -70,24 +70,24 @@ Each repo (backend, public site, dashboard) has its own GitHub Actions pipeline,
 ## Backend deployment pipeline
 The backend has the heaviest test job of the three: besides the typecheck and unit tests it also runs integration tests, which need a real database. That part gets its own diagram below.
 
-![image](https://github.com/user-attachments/assets/079dfcba-e09a-4a8c-8d0e-4811274ce8f1)
+![image](https://github.com/user-attachments/assets/9cdcca97-b8d2-4fac-8bb0-4a31b08d6454)
 
 ## Backend integration testing 
 Since this testing includes both unit and integration tests, I gave it its own diagram. CI starts a throwaway Postgres database, the job creates and migrates a separate test database, and the integration tests run their queries against that live database. It also checks out the shared TypeScript types repo (archery-contracts) next to the backend so the file dependency resolves.
 
-![image](https://github.com/user-attachments/assets/0adb4b7c-04c8-4534-99f6-2bf6bee8e313)
+![image](https://github.com/user-attachments/assets/c66312c9-e569-4227-afed-1942d1e223e4)
 
 
 ## Public site deployment pipeline
 The public site's tests are node-only and have no database, so its tests are lighter. Otherwise its pipeline follows the shared flow in the same way.
 
-![image](https://github.com/user-attachments/assets/f99d95f4-8b1d-47bb-acc9-1f8c15739523)
+![image](https://github.com/user-attachments/assets/7095f962-1dee-46af-bd65-f923e08acc4f)
 
 
 ## Dashboard deployment pipeline
 The dashboard's deploy is scoped, meaning that instead of restarting the whole stack, it pulls and recreates only its own container, then reloads nginx so nginx picks up the new container's address.
 
-![image](https://github.com/user-attachments/assets/dc868418-79b2-469d-b986-79dba121c46d)
+![image](https://github.com/user-attachments/assets/59ad37f9-57f4-447d-9076-bdeebdc47113)
 
 
 
