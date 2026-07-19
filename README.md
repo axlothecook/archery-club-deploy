@@ -37,7 +37,7 @@ How does it do that? The Pi dials out to Cloudflare; Cloudflare sends public tra
 # Request flow (runtime) 
 I made a diagram of how a request flows through the stack at runtime: from the browser, through the Cloudflare Tunnel to nginx on the Pi, then on to the right service (public site, dashboard, or backend). Everything runs on one home Raspberry Pi, behind a Cloudflare Tunnel, so nothing on the Pi is exposed to the internet directly: cloudflared dials out to Cloudflare, and no ports are exposed to the internet.
 
-![image](https://github.com/user-attachments/assets/077fc271-8302-4ebd-b2de-984700280001)
+![image](https://github.com/user-attachments/assets/353bf1b4-3e4e-4bea-bc2a-5a95d959d688)
 
 
 ## How a request flows
