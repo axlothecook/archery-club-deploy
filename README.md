@@ -37,7 +37,7 @@ How does it do that? The Pi dials out to Cloudflare; Cloudflare sends public tra
 # Request flow (runtime) 
 I made a diagram of how a request flows through the stack at runtime: from the browser, through the Cloudflare Tunnel to nginx on the Pi, then on to the right service (public site, dashboard, or backend). Everything runs on one home Raspberry Pi, behind a Cloudflare Tunnel, so nothing on the Pi is exposed to the internet directly: cloudflared dials out to Cloudflare, and no ports are exposed to the internet.
 
-![image](https://github.com/user-attachments/assets/e5c592aa-1094-4cbd-a0d3-993f59ff04aa)
+![image](https://github.com/user-attachments/assets/077fc271-8302-4ebd-b2de-984700280001)
 
 
 ## How a request flows
@@ -65,24 +65,24 @@ Each repo (backend, public site, dashboard) has its own GitHub Actions pipeline,
 ## Backend deployment pipeline
 The backend has the heaviest test job of the three: besides the typecheck and unit tests it also runs integration tests, which need a real database. That part gets its own diagram below.
 
-![image](https://github.com/user-attachments/assets/9cdcca97-b8d2-4fac-8bb0-4a31b08d6454)
+![image](https://github.com/user-attachments/assets/8983cc89-6d12-4a12-88c0-6853d26e0228)
 
 ## Backend integration testing 
 Since this testing includes both unit and integration tests, I gave it its own diagram. CI starts a throwaway Postgres database, the job creates and migrates a separate test database, and the integration tests run their queries against that live database. It also checks out the shared TypeScript types repo (archery-contracts) next to the backend so the file dependency resolves.
 
-![image](https://github.com/user-attachments/assets/c66312c9-e569-4227-afed-1942d1e223e4)
+![image](https://github.com/user-attachments/assets/d6976e53-faba-4e7b-80cf-cc9ee3580eef)
 
 
 ## Public site deployment pipeline
 The public site's tests are node-only and have no database, so its tests are lighter. Otherwise its pipeline follows the shared flow in the same way.
 
-![image](https://github.com/user-attachments/assets/d6b1e715-5e09-467f-b8b7-c6b3ef6553a5)
+![image](https://github.com/user-attachments/assets/0796adbe-b9ba-4036-a7b6-a31ce4f5238b)
 
 
 ## Dashboard deployment pipeline
 The dashboard's deploy is scoped, meaning that instead of restarting the whole stack, it pulls and recreates only its own container, then reloads nginx so nginx picks up the new container's address.
 
-![image](https://github.com/user-attachments/assets/3b1e1f4b-db41-43bd-8ad0-06901a5fb958)
+![image](https://github.com/user-attachments/assets/bb974501-f6bf-4a6b-990d-7b00d10b34d8)
 
 
 
